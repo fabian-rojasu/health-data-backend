@@ -20,8 +20,6 @@ app.add_middleware(
     allow_headers=["*"],  # Permitir todos los encabezados
 )
 
-
-
 def get_db():
     db = SessionLocal()
     try:
@@ -56,6 +54,7 @@ def register_user(request: RegisterRequest, db: Session = Depends(get_db)):
 def login_user(req:LoginRequest, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.email == req.email).first()
     if user is None:
+        print(user)
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     if user.password != req.password:
         raise HTTPException(status_code=400, detail="Contraseña incorrecta")
