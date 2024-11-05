@@ -7,3 +7,7 @@ class RegisterRequest(BaseModel):
     password: str
     birthday: str
     gender: str
+    
+class LoginRequest(BaseModel):
+    email: str
+    password: str
