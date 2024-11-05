@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 import models
 from database import SessionLocal, engine
-from schema import RegisterRequest
+from schema import LoginRequest, RegisterRequest
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -19,8 +19,6 @@ app.add_middleware(
     allow_methods=["*"],  # Permitir todos los métodos
     allow_headers=["*"],  # Permitir todos los encabezados
 )
-
-
 
 def get_db():
     db = SessionLocal()
@@ -51,3 +49,13 @@ def register_user(request: RegisterRequest, db: Session = Depends(get_db)):
         print(e)
         db.rollback()
         raise HTTPException(status_code=400, detail="Error al registrar el usuario")
+
+@app.post("/login")
+def login_user(req:LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.email == req.email).first()
+    if user is None:
+        print(user)
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if user.password != req.password:
+        raise HTTPException(status_code=400, detail="Contraseña incorrecta")
+    return {"message": "Inicio de sesión correcto" , "ok": True, "userId" : user.id}
