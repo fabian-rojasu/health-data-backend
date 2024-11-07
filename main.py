@@ -251,3 +251,34 @@ async def import_data(
         db.rollback()
         print(e)
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/profile/{user_id}")
+def get_user_profile(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {
+        "email": user.email,
+        "username": user.username,
+        "password": user.password,
+        "birthday": user.birthday,
+        "gender": user.gender,
+    }
+
+@app.put("/profile/{user_id}")
+def update_user_profile(user_id: int, profile_data:RegisterRequest , db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Actualiza los campos del usuario
+    user.email = profile_data.email
+    user.username = profile_data.username
+    user.password = profile_data.password
+    user.birthday = profile_data.birthday
+    user.gender = profile_data.gender
+
+    user.birthday = datetime.datetime.strptime(profile_data.birthday, "%Y-%m-%d").date()
+    db.commit()
+    return {"message": "User profile updated successfully"}
