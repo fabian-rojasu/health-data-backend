@@ -185,9 +185,11 @@ async def import_data(
 
         elif file_type == "height":
             for row in csv_reader:
-                date = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
-                height = float(row[1])
 
+                date = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
+                print(date)
+                height = float(row[1])
+                print(height)
                 height_record = models.Height(user_id=user_id, date=date, height=height)
                 db.merge(height_record)
 
@@ -299,7 +301,6 @@ def get_historical_data(
     metric_type: Literal["weight", "muscle", "fat", "water", "steps", "exercise"],
     db: Session = Depends(get_db)
 ):
-    # Calculate date range
     end_date = datetime.now()
     range_mapping = {
         "1w": timedelta(days=7),
@@ -310,11 +311,20 @@ def get_historical_data(
     }
     start_date = end_date - range_mapping[time_range]
     
+    # Define el formato de agrupación según el rango de tiempo
+    date_format = {
+        "1w": '%Y-%m-%d',           # Días
+        "1m": '%Y-%W',              # Semanas
+        "3m": '%Y-%W',              # Semanas
+        "6m": '%Y-%m',              # Meses
+        "1y": '%Y-%m',              # Meses
+    }[time_range]
 
     if metric_type == "weight":
+        date_group = func.strftime(date_format, models.Weight.date)
         query = (
             db.query(
-                func.date(models.Weight.date).label('date'),
+                date_group.label('date'),
                 func.avg(models.Weight.weight).label('value')
             )
             .filter(
@@ -324,14 +334,15 @@ def get_historical_data(
                     models.Weight.date <= end_date
                 )
             )
-            .group_by(func.date(models.Weight.date))
+            .group_by(date_group)
             .order_by('date')
         )
     
     elif metric_type == "muscle":
+        date_group = func.strftime(date_format, models.BodyComposition.date)
         query = (
             db.query(
-                func.date(models.BodyComposition.date).label('date'),
+                date_group.label('date'),
                 func.avg(models.BodyComposition.muscle).label('value')
             )
             .filter(
@@ -341,14 +352,15 @@ def get_historical_data(
                     models.BodyComposition.date <= end_date
                 )
             )
-            .group_by(func.date(models.BodyComposition.date))
+            .group_by(date_group)
             .order_by('date')
         )
     
     elif metric_type == "fat":
+        date_group = func.strftime(date_format, models.BodyFatPercentage.date)
         query = (
             db.query(
-                func.date(models.BodyFatPercentage.date).label('date'),
+                date_group.label('date'),
                 func.avg(models.BodyFatPercentage.fat_percentage).label('value')
             )
             .filter(
@@ -358,15 +370,16 @@ def get_historical_data(
                     models.BodyFatPercentage.date <= end_date
                 )
             )
-            .group_by(func.date(models.BodyFatPercentage.date))
+            .group_by(date_group)
             .order_by('date')
         )
     
     elif metric_type == "water":
+        date_group = func.strftime(date_format, models.WaterConsumption.date)
         query = (
             db.query(
-                func.date(models.WaterConsumption.date).label('date'),
-                func.sum(models.WaterConsumption.water_amount).label('value')
+                date_group.label('date'),
+                func.avg(models.WaterConsumption.water_amount).label('value')  # Cambiado a promedio
             )
             .filter(
                 and_(
@@ -375,15 +388,16 @@ def get_historical_data(
                     models.WaterConsumption.date <= end_date
                 )
             )
-            .group_by(func.date(models.WaterConsumption.date))
+            .group_by(date_group)
             .order_by('date')
         )
     
     elif metric_type == "steps":
+        date_group = func.strftime(date_format, models.DailyStep.date)
         query = (
             db.query(
-                func.date(models.DailyStep.date).label('date'),
-                func.sum(models.DailyStep.steps_amount).label('value')
+                date_group.label('date'),
+                func.avg(models.DailyStep.steps_amount).label('value')  # Cambiado a promedio
             )
             .filter(
                 and_(
@@ -392,14 +406,15 @@ def get_historical_data(
                     models.DailyStep.date <= end_date
                 )
             )
-            .group_by(func.date(models.DailyStep.date))
+            .group_by(date_group)
             .order_by('date')
         )
     
     elif metric_type == "exercise":
+        date_group = func.strftime(date_format, models.Exercise.date)
         query = (
             db.query(
-                func.date(models.Exercise.date).label('date'),
+                date_group.label('date'),
                 models.Exercise.exercise_name,
                 func.count(models.Exercise.exercise_name).label('count'),
                 func.sum(models.Exercise.duration).label('duration')
@@ -411,7 +426,7 @@ def get_historical_data(
                     models.Exercise.date <= end_date
                 )
             )
-            .group_by(func.date(models.Exercise.date), models.Exercise.exercise_name)
+            .group_by(date_group, models.Exercise.exercise_name)
             .order_by('date')
         )
         
@@ -442,6 +457,11 @@ def get_historical_data(
     
 
     results = query.all()
+
+    print(
+    f"Query results: {results}"
+    )
+    
     return {
         "dates": [str(result.date) for result in results],
         "values": [float(result.value) for result in results]
