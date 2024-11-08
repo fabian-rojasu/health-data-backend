@@ -1,14 +1,15 @@
 import csv
-from datetime import datetime 
+from datetime import datetime, timedelta
 from io import StringIO
 from fastapi import FastAPI, Depends, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import and_, func
 from pydantic import BaseModel, EmailStr
 import models
 from database import SessionLocal, engine
 from schema import LoginRequest, RegisterRequest
+from typing import Literal
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -43,7 +44,7 @@ def register_user(request: RegisterRequest, db: Session = Depends(get_db)):
         gender=request.gender,
     )
     # Fix: Convertir la fecha de nacimiento a un objeto datetime.date
-    user.birthday = datetime.datetime.strptime(request.birthday, "%Y-%m-%d").date()
+    user.birthday = datetime.strptime(request.birthday, "%Y-%m-%d").date()
 
     db.add(user)
     try:
@@ -112,12 +113,21 @@ def get_general_dashboard(user_id: int, db: Session = Depends(get_db)):
         .first()
     )
 
+    # Modificar la consulta de ejercicios para obtener solo los de la última fecha
+    latest_exercise_date = (
+        db.query(func.max(models.Exercise.date))
+        .filter(models.Exercise.user_id == user_id)
+        .scalar()
+    )
+
     latest_exercises = (
         db.query(models.Exercise)
-        .filter(models.Exercise.user_id == user_id)
-        .order_by(models.Exercise.date.desc())
+        .filter(
+            models.Exercise.user_id == user_id,
+            models.Exercise.date == latest_exercise_date
+        )
         .all()
-    )
+    ) if latest_exercise_date else []
 
     if not latest_weight or not latest_height:
         raise HTTPException(status_code=404, detail="No basic metrics found for user")
@@ -167,7 +177,7 @@ async def import_data(
 
         if file_type == "weight":
             for row in csv_reader:
-                date = datetime.datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
+                date = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
                 weight = float(row[1])
 
                 weight_record = models.Weight(user_id=user_id, date=date, weight=weight)
@@ -175,7 +185,7 @@ async def import_data(
 
         elif file_type == "height":
             for row in csv_reader:
-                date = datetime.datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
+                date = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
                 height = float(row[1])
 
                 height_record = models.Height(user_id=user_id, date=date, height=height)
@@ -183,7 +193,7 @@ async def import_data(
 
         elif file_type == "body_composition":
             for row in csv_reader:
-                date = datetime.datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
+                date = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
                 fat = float(row[1])
                 muscle = float(row[2])
                 water = float(row[3])
@@ -195,7 +205,7 @@ async def import_data(
 
         elif file_type == "body_fat_percentage":
             for row in csv_reader:
-                date = datetime.datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
+                date = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
                 fat_percentage = float(row[1])
 
                 fat_record = models.BodyFatPercentage(
@@ -205,7 +215,7 @@ async def import_data(
 
         elif file_type == "water":
             for row in csv_reader:
-                date = datetime.datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
+                date = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
                 water_amount = int(row[1])
 
                 water_record = models.WaterConsumption(
@@ -215,7 +225,7 @@ async def import_data(
 
         elif file_type == "steps":
             for row in csv_reader:
-                date = datetime.datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
+                date = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
                 steps = int(row[1])
 
                 steps_record = models.DailyStep(
@@ -225,7 +235,7 @@ async def import_data(
 
         elif file_type == "exercises":
             for row in csv_reader:
-                date = datetime.datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
+                date = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
                 exercise_name = row[1]
                 duration = int(row[2])
 
@@ -248,10 +258,6 @@ async def import_data(
         print(e)
         raise HTTPException(status_code=400, detail=str(e))
 
-    except Exception as e:
-        db.rollback()
-        print(e)
-        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get("/profile/{user_id}")
@@ -280,26 +286,163 @@ def update_user_profile(user_id: int, profile_data:RegisterRequest , db: Session
     user.birthday = profile_data.birthday
     user.gender = profile_data.gender
 
-    user.birthday = datetime.datetime.strptime(profile_data.birthday, "%Y-%m-%d").date()
+    user.birthday = datetime.strptime(profile_data.birthday, "%Y-%m-%d").date()
     db.commit()
     return {"message": "User profile updated successfully"}
 
-def get_daily_steps_by_user_and_date_range(db: Session, user_id: int, start_date: datetime, end_date: datetime):
-    return db.query(models.DailyStep).filter(
-        and_(
-            models.DailyStep.user_id == user_id,
-            models.DailyStep.date >= start_date,
-            models.DailyStep.date <= end_date
-        )
-    ).all()
+TimeRange = Literal["1w", "1m", "3m", "6m", "1y"]
 
-@app.get("/daily-steps/")
-def read_daily_steps(user_id: int, start_date: str, end_date: str, db: Session = Depends(get_db)):
-    start_date_dt = datetime.strptime(start_date, "%Y-%m-%d")
-    end_date_dt = datetime.strptime(end_date, "%Y-%m-%d")
-    daily_steps = db.query(models.DailyStep).filter(
-        models.DailyStep.user_id == user_id,
-        models.DailyStep.date >= start_date_dt,
-        models.DailyStep.date <= end_date_dt
-    ).all()
-    return daily_steps
+@app.get("/dashboard/historical/{user_id}")
+def get_historical_data(
+    user_id: int, 
+    time_range: TimeRange,
+    metric_type: Literal["weight", "muscle", "fat", "water", "steps", "exercise"],
+    db: Session = Depends(get_db)
+):
+    # Calculate date range
+    end_date = datetime.now()
+    range_mapping = {
+        "1w": timedelta(days=7),
+        "1m": timedelta(days=30),
+        "3m": timedelta(days=90),
+        "6m": timedelta(days=180),
+        "1y": timedelta(days=365),
+    }
+    start_date = end_date - range_mapping[time_range]
+    
+
+    if metric_type == "weight":
+        query = (
+            db.query(
+                func.date(models.Weight.date).label('date'),
+                func.avg(models.Weight.weight).label('value')
+            )
+            .filter(
+                and_(
+                    models.Weight.user_id == user_id,
+                    models.Weight.date >= start_date,
+                    models.Weight.date <= end_date
+                )
+            )
+            .group_by(func.date(models.Weight.date))
+            .order_by('date')
+        )
+    
+    elif metric_type == "muscle":
+        query = (
+            db.query(
+                func.date(models.BodyComposition.date).label('date'),
+                func.avg(models.BodyComposition.muscle).label('value')
+            )
+            .filter(
+                and_(
+                    models.BodyComposition.user_id == user_id,
+                    models.BodyComposition.date >= start_date,
+                    models.BodyComposition.date <= end_date
+                )
+            )
+            .group_by(func.date(models.BodyComposition.date))
+            .order_by('date')
+        )
+    
+    elif metric_type == "fat":
+        query = (
+            db.query(
+                func.date(models.BodyFatPercentage.date).label('date'),
+                func.avg(models.BodyFatPercentage.fat_percentage).label('value')
+            )
+            .filter(
+                and_(
+                    models.BodyFatPercentage.user_id == user_id,
+                    models.BodyFatPercentage.date >= start_date,
+                    models.BodyFatPercentage.date <= end_date
+                )
+            )
+            .group_by(func.date(models.BodyFatPercentage.date))
+            .order_by('date')
+        )
+    
+    elif metric_type == "water":
+        query = (
+            db.query(
+                func.date(models.WaterConsumption.date).label('date'),
+                func.sum(models.WaterConsumption.water_amount).label('value')
+            )
+            .filter(
+                and_(
+                    models.WaterConsumption.user_id == user_id,
+                    models.WaterConsumption.date >= start_date,
+                    models.WaterConsumption.date <= end_date
+                )
+            )
+            .group_by(func.date(models.WaterConsumption.date))
+            .order_by('date')
+        )
+    
+    elif metric_type == "steps":
+        query = (
+            db.query(
+                func.date(models.DailyStep.date).label('date'),
+                func.sum(models.DailyStep.steps_amount).label('value')
+            )
+            .filter(
+                and_(
+                    models.DailyStep.user_id == user_id,
+                    models.DailyStep.date >= start_date,
+                    models.DailyStep.date <= end_date
+                )
+            )
+            .group_by(func.date(models.DailyStep.date))
+            .order_by('date')
+        )
+    
+    elif metric_type == "exercise":
+        query = (
+            db.query(
+                func.date(models.Exercise.date).label('date'),
+                models.Exercise.exercise_name,
+                func.count(models.Exercise.exercise_name).label('count'),
+                func.sum(models.Exercise.duration).label('duration')
+            )
+            .filter(
+                and_(
+                    models.Exercise.user_id == user_id,
+                    models.Exercise.date >= start_date,
+                    models.Exercise.date <= end_date
+                )
+            )
+            .group_by(func.date(models.Exercise.date), models.Exercise.exercise_name)
+            .order_by('date')
+        )
+        
+
+        results = query.all()
+        
+
+        exercise_data = {}
+        for result in results:
+            date_str = str(result.date)
+            if date_str not in exercise_data:
+                exercise_data[date_str] = {
+                    'exercises': [],
+                    'total_duration': 0
+                }
+            
+            exercise_data[date_str]['exercises'].append({
+                'name': result.exercise_name,
+                'count': result.count,
+                'duration': result.duration
+            })
+            exercise_data[date_str]['total_duration'] += result.duration
+
+        return {
+            "dates": list(exercise_data.keys()),
+            "data": exercise_data
+        }
+    
+
+    results = query.all()
+    return {
+        "dates": [str(result.date) for result in results],
+        "values": [float(result.value) for result in results]
+    }
