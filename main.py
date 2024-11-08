@@ -1,9 +1,10 @@
 import csv
-import datetime
+from datetime import datetime 
 from io import StringIO
 from fastapi import FastAPI, Depends, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy import and_
 from pydantic import BaseModel, EmailStr
 import models
 from database import SessionLocal, engine
@@ -282,3 +283,23 @@ def update_user_profile(user_id: int, profile_data:RegisterRequest , db: Session
     user.birthday = datetime.datetime.strptime(profile_data.birthday, "%Y-%m-%d").date()
     db.commit()
     return {"message": "User profile updated successfully"}
+
+def get_daily_steps_by_user_and_date_range(db: Session, user_id: int, start_date: datetime, end_date: datetime):
+    return db.query(models.DailyStep).filter(
+        and_(
+            models.DailyStep.user_id == user_id,
+            models.DailyStep.date >= start_date,
+            models.DailyStep.date <= end_date
+        )
+    ).all()
+
+@app.get("/daily-steps/")
+def read_daily_steps(user_id: int, start_date: str, end_date: str, db: Session = Depends(get_db)):
+    start_date_dt = datetime.strptime(start_date, "%Y-%m-%d")
+    end_date_dt = datetime.strptime(end_date, "%Y-%m-%d")
+    daily_steps = db.query(models.DailyStep).filter(
+        models.DailyStep.user_id == user_id,
+        models.DailyStep.date >= start_date_dt,
+        models.DailyStep.date <= end_date_dt
+    ).all()
+    return daily_steps
