@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
 from sqlalchemy.orm import relationship, declarative_base
 from database import Base
 
@@ -9,7 +9,7 @@ class User(Base):
     email = Column(String, nullable=False, unique=True)
     username = Column(String, nullable=False, unique=True)
     password = Column(String, nullable=False)
-    birthday = Column(Date, nullable=False)
+    birthday = Column(DateTime, nullable=False)
     gender = Column(String, nullable=False)
     
     weights = relationship("Weight", back_populates="user")
@@ -24,7 +24,7 @@ class User(Base):
 class Weight(Base):
     __tablename__ = 'weights'
     
-    date = Column(Date, primary_key=True)
+    date = Column(DateTime, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'), primary_key=True)
     weight = Column(Float, nullable=False)
     
@@ -34,7 +34,7 @@ class Weight(Base):
 class Height(Base):
     __tablename__ = 'heights'
     
-    date = Column(Date, primary_key=True)
+    date = Column(DateTime, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'), primary_key=True)
     height = Column(Float, nullable=False)
     
@@ -44,7 +44,7 @@ class Height(Base):
 class BodyComposition(Base):
     __tablename__ = 'body_compositions'
     
-    date = Column(Date, primary_key=True)
+    date = Column(DateTime, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'), primary_key=True)
     fat = Column(Float, nullable=False)
     muscle = Column(Float, nullable=False)
@@ -56,7 +56,7 @@ class BodyComposition(Base):
 class BodyFatPercentage(Base):
     __tablename__ = 'body_fat_percentages'
     
-    date = Column(Date, primary_key=True)
+    date = Column(DateTime, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'), primary_key=True)
     fat_percentage = Column(Float, nullable=False)
     
@@ -66,7 +66,7 @@ class BodyFatPercentage(Base):
 class DailyStep(Base):
     __tablename__ = 'daily_steps'
     
-    date = Column(Date, primary_key=True)
+    date = Column(DateTime, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'), primary_key=True)
     steps_amount = Column(Integer, nullable=False)
     
@@ -76,7 +76,7 @@ class DailyStep(Base):
 class Exercise(Base):
     __tablename__ = 'exercises'
     
-    date = Column(Date, primary_key=True)
+    date = Column(DateTime, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'), primary_key=True)
     exercise_name = Column(String, nullable=False)
     duration = Column(Float, nullable=False)  
@@ -87,7 +87,7 @@ class Exercise(Base):
 class WaterConsumption(Base):
     __tablename__ = 'water_consumptions'
     
-    date = Column(Date, primary_key=True)
+    date = Column(DateTime, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'), primary_key=True)
     water_amount = Column(Float, nullable=False) 
     
