@@ -130,7 +130,20 @@ def get_general_dashboard(user_id: int, db: Session = Depends(get_db)):
     ) if latest_exercise_date else []
 
     if not latest_weight or not latest_height:
-        raise HTTPException(status_code=404, detail="No basic metrics found for user")
+        return {
+            "current_weight": None,
+            "current_height": None,
+            "body_composition": {
+                "fat": None,
+                "muscle": None,
+                "water": None,
+            },
+            "bmi": None,
+            "body_fat_percentage": None,
+            "water_glasses": 0,
+            "steps": 0,
+            "exercises": [],
+        }
 
     bmi = latest_weight.weight / ((latest_height.height / 100) ** 2)
 
