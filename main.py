@@ -128,28 +128,19 @@ def get_general_dashboard(user_id: int, db: Session = Depends(get_db)):
         )
         .all()
     ) if latest_exercise_date else []
+    
 
-    if not latest_weight or not latest_height:
-        return {
-            "current_weight": None,
-            "current_height": None,
-            "body_composition": {
-                "fat": None,
-                "muscle": None,
-                "water": None,
-            },
-            "bmi": None,
-            "body_fat_percentage": None,
-            "water_glasses": 0,
-            "steps": 0,
-            "exercises": [],
-        }
+    bmi = None
+    if not latest_height or not latest_weight:
+        bmi = 0
+    else:
+        bmi = latest_weight.weight / ((latest_height.height / 100) ** 2)
 
-    bmi = latest_weight.weight / ((latest_height.height / 100) ** 2)
+
 
     return {
-        "current_weight": latest_weight.weight,
-        "current_height": latest_height.height,
+        "current_weight": latest_weight.weight if latest_weight else None ,
+        "current_height": latest_height.height if latest_height else None,
         "body_composition": {
             "fat": latest_composition.fat if latest_composition else None,
             "muscle": latest_composition.muscle if latest_composition else None,
